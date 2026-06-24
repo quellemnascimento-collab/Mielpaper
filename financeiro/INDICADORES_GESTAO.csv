@@ -1,0 +1,8 @@
+Indicador,Fórmula,Janeiro,Fevereiro,Março,Abril,Maio,Junho,Julho,Agosto,Setembro,Outubro,Novembro,Dezembro
+CAC (Custo de Aquisição de Cliente),Investimento em marketing / Nº de novos clientes,,,,,,,,,,,,
+Ticket Médio,Receita total / Nº de pedidos,,,,,,,,,,,,
+LTV (Lifetime Value),Ticket médio x Frequência de compra x Tempo médio de retenção,,,,,,,,,,,,
+Taxa de Recompra,Nº de clientes com 2+ compras / Nº total de clientes,,,,,,,,,,,,
+Giro de Estoque,CMV / Estoque médio,,,,,,,,,,,,
+Ponto de Equilíbrio (unidades),Despesas fixas / Margem de contribuição unitária,,,,,,,,,,,,
+Ponto de Equilíbrio (R$),Despesas fixas / (Margem de contribuição % ),,,,,,,,,,,,
