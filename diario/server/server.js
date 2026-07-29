@@ -7,13 +7,20 @@ const cookieParser = require('cookie-parser');
 const jwt = require('jsonwebtoken');
 
 const db = require('./db');
-const { backupEntryToGithub, isConfigured: githubConfigured } = require('./githubBackup');
+const { backupEntryByEmail, isConfigured: emailBackupConfigured } = require('./emailBackup');
 
 const PORT = process.env.PORT || 3000;
 const DIARY_PASSWORD = process.env.DIARY_PASSWORD;
 const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(32).toString('hex');
 const COOKIE_NAME = 'diario_session';
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const EMAIL_BACKUP_MIN_INTERVAL_MS =
+  (Number(process.env.EMAIL_BACKUP_MIN_INTERVAL_MINUTES) || 5) * 60 * 1000;
+
+// In-memory throttle so continuous typing doesn't send an email per
+// keystroke pause; a "force" save (blur, switching entries, logout, unload)
+// always bypasses it.
+const lastEmailedAt = new Map();
 
 if (!DIARY_PASSWORD) {
   console.warn(
@@ -55,7 +62,7 @@ app.post('/api/login', (req, res) => {
     secure: req.secure || req.headers['x-forwarded-proto'] === 'https',
     maxAge: 30 * 24 * 60 * 60 * 1000,
   });
-  res.json({ ok: true, githubBackupEnabled: githubConfigured() });
+  res.json({ ok: true, emailBackupEnabled: emailBackupConfigured() });
 });
 
 app.post('/api/logout', (req, res) => {
@@ -68,7 +75,7 @@ app.get('/api/session', (req, res) => {
   if (!token) return res.json({ authenticated: false });
   try {
     jwt.verify(token, JWT_SECRET);
-    res.json({ authenticated: true, githubBackupEnabled: githubConfigured() });
+    res.json({ authenticated: true, emailBackupEnabled: emailBackupConfigured() });
   } catch {
     res.json({ authenticated: false });
   }
@@ -92,12 +99,21 @@ app.get('/api/entries/:date', requireAuth, (req, res) => {
 
 app.put('/api/entries/:date', requireAuth, async (req, res) => {
   const { date } = req.params;
-  const { content } = req.body || {};
+  const { content, force } = req.body || {};
   if (!DATE_RE.test(date)) return res.status(400).json({ error: 'Data inválida.' });
   if (typeof content !== 'string') return res.status(400).json({ error: 'Conteúdo inválido.' });
 
   const saved = db.upsertEntry(date, content);
-  const backup = await backupEntryToGithub(date, content);
+
+  const now = Date.now();
+  const last = lastEmailedAt.get(date) || 0;
+  let backup;
+  if (force || now - last >= EMAIL_BACKUP_MIN_INTERVAL_MS) {
+    backup = await backupEntryByEmail(date, content);
+    if (backup.ok) lastEmailedAt.set(date, now);
+  } else {
+    backup = { ok: false, skipped: true, throttled: true };
+  }
 
   res.json({ ok: true, updatedAt: saved.updated_at, backup });
 });

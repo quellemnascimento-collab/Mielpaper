@@ -95,6 +95,11 @@
   }
 
   async function openEntry(date) {
+    if (currentDate && currentDate !== date) {
+      clearTimeout(saveTimer);
+      await saveEntry(true);
+    }
+
     currentDate = date;
     entryDateLabel.textContent = formatDateLabel(date);
     setStatus('Carregando...', '');
@@ -113,26 +118,29 @@
     return new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(new Date(iso));
   }
 
-  async function saveEntry() {
+  async function saveEntry(force = false) {
     if (!currentDate) return;
+    const date = currentDate;
     const content = entryContent.value;
     if (content === lastSavedContent) return;
 
     setStatus('Salvando...', '');
     try {
-      const res = await api(`/api/entries/${currentDate}`, {
+      const res = await api(`/api/entries/${date}`, {
         method: 'PUT',
-        body: JSON.stringify({ content }),
+        body: JSON.stringify({ content, force }),
       });
       const data = await res.json();
       lastSavedContent = content;
 
       if (data.backup && data.backup.ok) {
-        setStatus(`Salvo às ${formatTime(data.updatedAt)} · backup no GitHub ✓`, 'ok');
+        setStatus(`Salvo às ${formatTime(data.updatedAt)} · backup por e-mail enviado ✓`, 'ok');
+      } else if (data.backup && data.backup.throttled) {
+        setStatus(`Salvo às ${formatTime(data.updatedAt)}`, '');
       } else if (data.backup && data.backup.skipped) {
-        setStatus(`Salvo às ${formatTime(data.updatedAt)} (backup no GitHub não configurado)`, '');
+        setStatus(`Salvo às ${formatTime(data.updatedAt)} (backup por e-mail não configurado)`, '');
       } else {
-        setStatus(`Salvo às ${formatTime(data.updatedAt)}, mas o backup falhou ⚠`, 'warn');
+        setStatus(`Salvo às ${formatTime(data.updatedAt)}, mas o backup por e-mail falhou ⚠`, 'warn');
       }
       loadEntries();
     } catch (err) {
@@ -145,19 +153,19 @@
   entryContent.addEventListener('input', () => {
     setStatus('Escrevendo...', '');
     clearTimeout(saveTimer);
-    saveTimer = setTimeout(saveEntry, 1200);
+    saveTimer = setTimeout(() => saveEntry(false), 1200);
   });
 
   entryContent.addEventListener('blur', () => {
     clearTimeout(saveTimer);
-    saveEntry();
+    saveEntry(true);
   });
 
   window.addEventListener('beforeunload', () => {
     if (entryContent.value !== lastSavedContent && currentDate) {
       navigator.sendBeacon(
         `/api/entries/${currentDate}`,
-        new Blob([JSON.stringify({ content: entryContent.value })], { type: 'application/json' })
+        new Blob([JSON.stringify({ content: entryContent.value, force: true })], { type: 'application/json' })
       );
     }
   });
@@ -167,7 +175,7 @@
 
   logoutBtn.addEventListener('click', async () => {
     clearTimeout(saveTimer);
-    await saveEntry();
+    await saveEntry(true);
     await api('/api/logout', { method: 'POST' });
     showLogin();
   });
