@@ -1,0 +1,11 @@
+{
+  "name": "Meu Diário",
+  "short_name": "Diário",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#faf6ee",
+  "theme_color": "#3a2a1a",
+  "icons": [
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}
